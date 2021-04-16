@@ -33,7 +33,7 @@ Type staRVe_model(objective_function<Type>* obj) {
   DATA_INTEGER(conditional_sim); // If true, don't simulate w
 
   PARAMETER_VECTOR(working_response_pars); // Response distribution parameters except for mean
-  PARAMETER_VECTOR(mean_pars); // Fixed effects B*X
+  PARAMETER_VECTOR(mean_pars); // Fixed effects B*X (X*Beta?)
   PARAMETER_VECTOR(resp_w);
   PARAMETER(log_space_sd);
   PARAMETER(log_space_nu);

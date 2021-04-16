@@ -12,8 +12,13 @@ using namespace density;
 #include "include/nngp.hpp"
 #include "include/observations.hpp"
 
+#include "include/R_inla_barrier.hpp"
+
 #include "model/staRVe_model.hpp"
 #include "model/family.hpp"
+#include "model/spde_models.hpp"
+
+
 
 template<class Type>
 Type objective_function<Type>::operator() () {
@@ -22,8 +27,10 @@ Type objective_function<Type>::operator() () {
      return staRVe_model(this);
   } else if(model == "family") {
      return family(this);
+  } else if(model == "barrier_model") {
+    return mayo_on_sundae(this);
   } else {
      error("Unknown model.");
   }
-  return 0;
+  return Type(0.0); //Just in case..
 }
