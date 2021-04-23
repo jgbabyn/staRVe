@@ -18,7 +18,7 @@ Type mayo_on_sundae(objective_function<Type>* obj) {
   using namespace density;
   
   // Read in data / parameters / random effectos from R
-  DATA_INTEGER(n_time);
+  DATA_INTEGER(n_time); //not really needed?
   DATA_INTEGER(distribution_code);
   DATA_INTEGER(link_code);
 
@@ -37,9 +37,9 @@ Type mayo_on_sundae(objective_function<Type>* obj) {
   PARAMETER_VECTOR(mean_pars); // Fixed effects, just Beta...
   PARAMETER(log_range); //range for Matern of SPDE, barrier one is just fraction of this 
   PARAMETER(log_sigma_u); //marginal variance of Matern
-  PARAMETER_MATRIX(Z); //holds random effects from SPDE
-  PARAMETER(logit_time_ar1); // AR1 time rho thing, for now unused
-  PARAMETER(log_time_sd); //AR1 scale factor?
+  PARAMETER_ARRAY(Z); //holds random effects from SPDE
+  PARAMETER_VECTOR(logit_time_ar1); // AR1 time rho thing, for now unused
+  PARAMETER_VECTOR(log_time_sd); //AR1 scale factor?
   
 
   //Some transforms
@@ -47,9 +47,16 @@ Type mayo_on_sundae(objective_function<Type>* obj) {
   ranges(0) = exp(log_range);
   ranges(1) = ranges(0)*0.1;
   Type sigma_u = exp(log_sigma_u);
-  Type time_sd = exp(log_time_sd);
-  Type rho = rhoTrans(logit_time_ar1);
+  Type time_sd;
+  Type rho;
 
+  //If there is time stuff
+  if(log_time_sd.size() != 0){
+    time_sd = exp(log_time_sd(0));
+  }
+  if(logit_time_ar1.size() != 0){
+    rho = rhoTrans(logit_time_ar1(0));
+  }
     // Convert parameters from working scale to natural scale
 
   // Cross-check distribution_code order with family.hpp
@@ -81,18 +88,36 @@ Type mayo_on_sundae(objective_function<Type>* obj) {
   //Make the precision matrix Q
   SparseMatrix<Type> Q = Q_barrier(fem,ranges,sigma_u);
 
-  //add it's contribution to the nll
-  nll += GMRF(Q)(Z.col(0));
+  //Timey wimey bits
+  GMRF_t<Type> spat(Q);
 
-  vector<Type> AZ = A*Z.col(0);
+  if(log_time_sd.size() != 0){
+    N01<Type> nllN01;
+    AR1_t<N01<Type> > time(rho,nllN01);
+    SCALE_t<AR1_t<N01<Type> > > tscaled(time,time_sd);
+    SEPARABLE_t<SCALE_t<AR1_t<N01<Type> > >, GMRF_t<Type> > spattime(tscaled,spat);
+    nll += spattime(Z);
+  }else{ //Just space
+    nll += spat(Z);
+  }
+  
+  
+  //add it's contribution to the nll
+  
+
+  matrix<Type> AZ(A.rows(),Z.cols());
+  for(int i = 0; i < Z.cols();i++){
+    AZ.col(i) = A*Z.matrix().col(i);
+  }
+
   vector<Type> eta(obs_y.size());
   for(int i = 0; i < mean_design.rows();i++){
-    eta(i) = family.inv_link(mean_design.row(i),AZ(i));
-  }
+    eta(i) = family.inv_link(mean_design.row(i),AZ(i)); //has to be column order I guess
+   }
 
   for(int i = 0; i < obs_y.size(); i++){
-    nll -= keep(i)*family.log_density(obs_y(i),eta(i), sample_size(i));
-  }
+     nll -= keep(i)*family.log_density(obs_y(i),eta(i), sample_size(i));
+   }
   
   
   
